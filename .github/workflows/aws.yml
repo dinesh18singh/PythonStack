@@ -1,0 +1,54 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ecs-fargate-cicd.yaml'   # only runs when the template itself changes
+  workflow_dispatch: {}          # lets you trigger it manually from the Actions tab
+
+permissions:
+  id-token: write   # required for OIDC auth to AWS
+  contents: read    # required for actions/checkout
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: my-web-app
+  PROJECT_NAME: my-web-app
+  GITHUB_REPO: dinesh18singh/PythonStack
+  BRANCH_NAME: main
+  CONTAINER_PORT: 80
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy CloudFormation stack
+        run: |
+          aws cloudformation deploy \
+            --template-file ecs-fargate-cicd.yaml \
+            --stack-name "${STACK_NAME}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region "${AWS_REGION}" \
+            --parameter-overrides \
+                ProjectName="${PROJECT_NAME}" \
+                GitHubFullRepositoryId="${GITHUB_REPO}" \
+                GitHubBranchName="${BRANCH_NAME}" \
+                ContainerPort="${CONTAINER_PORT}"
+
+      - name: Show stack outputs
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --region "${AWS_REGION}" \
+            --query "Stacks[0].Outputs" \
+            --output table
