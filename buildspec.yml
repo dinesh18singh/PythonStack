@@ -5,6 +5,15 @@ phases:
     commands:
       - echo Logging in to Amazon ECR...
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      # Optional: only runs if ExtraBuildCredentialsSecretArn was set on the
+      # stack, which injects DOCKERHUB_USERNAME / DOCKERHUB_PASSWORD as env
+      # vars pulled from Secrets Manager. Useful to avoid Docker Hub's
+      # anonymous pull rate limits on your base image (e.g. FROM node:20).
+      - |
+        if [ -n "$DOCKERHUB_USERNAME" ]; then
+          echo Logging in to Docker Hub...
+          echo "$DOCKERHUB_PASSWORD" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+        fi
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG=${COMMIT_HASH:-latest}
   build:
